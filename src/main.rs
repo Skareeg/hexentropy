@@ -76,7 +76,7 @@ fn setup(mut commands: Commands, assets: Res<GameAssets>, atlases: Res<Assets<Te
     commands.spawn((
         SpriteSheetBundle {
             texture_atlas: assets.atlas1.clone(),
-            sprite: TextureAtlasSprite::new(tileset_1bit::ATLAS1_PERSON_BLANK),
+            sprite: TextureAtlasSprite::new(tileset_1bit::TileSet1Bit::Human as usize),
             transform: Transform::from_xyz(-500., 0., 0.),
             ..default()
         },

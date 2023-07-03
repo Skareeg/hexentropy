@@ -1,10 +1,3 @@
-pub const ATLAS1_PEOPLE_X_MIN: usize = 24;
-pub const ATLAS1_PEOPLE_X_MAX: usize = 31;
-pub const ATLAS1_PEOPLE_Y_MIN: usize = 0;
-pub const ATLAS1_PEOPLE_Y_MAX: usize = 9;
-
-pub const ATLAS1_PERSON_BLANK: usize = 25;
-
 pub enum TileSet1Bit {
 	// Row 1
 	Blank = 0,
@@ -109,4 +102,28 @@ pub enum TileSet1Bit {
 	WheelChair2,
 
 	// Row 3
+	Weeds1,
+	Shrub1,
+	Vine,
+	Tree7,
+	Tree8,
+	Stones,
+	Shrub2,
+	Tree9,
+	Road3Straight,
+	Road3Turn,
+	Road3Way3,
+	Road3Way4,
+	Road3End,
+	Pipe2End,
+	Pipe2Straight,
+	Pipe2Turn,
+	Pipe2Way4,
+	Pipe2Way3,
+	Cave1BL,
+	Cave1BC,
+	Cave1BR,
+	Weeds2,
+	Bar1L,
+	BlockX,
 }
