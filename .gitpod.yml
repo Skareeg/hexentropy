@@ -1,0 +1,6 @@
+tasks:
+  - name: Environment Dependencies Setup
+    init: sudo apt install -y g++ pkg-config libx11-dev libasound2-dev libudev-dev
+vscode:
+  extensions:
+    - rust-lang.rust-analyzer
