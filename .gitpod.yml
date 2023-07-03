@@ -1,3 +1,8 @@
+image:
+  file: Dockerfile
+ports:
+  - port: 6080
+    protocol: "http"
 tasks:
   - name: Environment Dependencies Setup
     init: sudo apt install -y g++ pkg-config libx11-dev libasound2-dev libudev-dev
