@@ -1,5 +1,6 @@
-image:
-  file: Dockerfile
+# checkoutLocation: src/github.com/skareeg/hexentropy
+# workspaceLocation: /
+image: gitpod/workspace-full-vnc
 ports:
   - port: 6080
     protocol: "http"
