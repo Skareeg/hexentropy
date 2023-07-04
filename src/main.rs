@@ -1,6 +1,9 @@
 use bevy::{prelude::*, app::AppExit};
 
 pub mod tileset_1bit;
+pub mod physics;
+
+pub mod dungeon;
 
 fn main() {
     App::new()

@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 bevy = "0.10.1"
 bevy_renet = "0.0.8"
+noise = "0.8.2"
