@@ -1,6 +1,7 @@
 use bevy::prelude::*;
-use bevy_rapier3d::prelude::*;
 use lerp::Lerp;
+
+use crate::character::CharacterMovement;
 
 #[derive(Component)]
 pub struct Player {
@@ -51,13 +52,12 @@ pub fn player_input(
 }
 
 pub fn player_movement(
-    mut players: Query<(&mut ExternalImpulse, &PlayerInput)>
+    mut players: Query<(&PlayerInput, &mut CharacterMovement)>
 ) {
-    for (mut impulse, input) in &mut players {
+    for (input, mut char) in &mut players {
         match &input.movement {
             Some(pim) => {
-                let pulse = Vec3::new(pim.x, pim.y, 0.) * 2000.0;
-                impulse.impulse += pulse;
+                char.requested = Some(Vec3::new(pim.x, pim.y, 0.));
             }
             None => {}
         }
@@ -78,8 +78,8 @@ pub fn camera_track_entity(
     for (mut transform, track) in &mut cameras {
         match ents.get(track.ent) {
             Ok(track_transform) => {
-                transform.translation.x = transform.translation.x.lerp(track_transform.translation.x, 0.05 * time.elapsed_seconds());
-                transform.translation.y = transform.translation.y.lerp(track_transform.translation.y, 0.05 * time.elapsed_seconds());
+                transform.translation.x = transform.translation.x.lerp(track_transform.translation.x, 0.5 * time.delta_seconds());
+                transform.translation.y = transform.translation.y.lerp(track_transform.translation.y, 0.5 * time.delta_seconds());
             }
             _ => {}
         }

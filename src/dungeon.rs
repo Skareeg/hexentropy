@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use ndarray::{Array3, array};
+use ndarray::Array3;
 
 use crate::{GameAssets, tileset_1bit::TileSet1Bit};
 

@@ -1,13 +1,14 @@
 use bevy::{prelude::*, app::AppExit, input::mouse::{MouseWheel, MouseScrollUnit}};
 use bevy_embedded_assets::EmbeddedAssetPlugin;
 use bevy_rapier3d::{prelude::{RapierPhysicsPlugin, NoUserData, RigidBody, Collider, KinematicCharacterController, RapierConfiguration, Ccd, LockedAxes, TimestepMode, Damping, Velocity, Sleeping, ColliderMassProperties, ExternalImpulse, Friction, ActiveEvents}, render::RapierDebugRenderPlugin};
+use character::{char_accel_movement_update};
 use dungeon::gen_dungeon_floor;
 use player::{player_input, player_movement, camera_track_entity};
 
-use crate::{dungeon::{Level, GenRoom}, player::{Player, PlayerInput, PlayerInputMove, NetLocal, CameraTrackEntity}};
+use crate::{dungeon::{Level, GenRoom}, player::{Player, PlayerInput, PlayerInputMove, NetLocal, CameraTrackEntity}, character::CharacterMovement};
 
 pub mod tileset_1bit;
-pub mod physics;
+pub mod character;
 
 pub mod dungeon;
 pub mod player;
@@ -36,6 +37,7 @@ fn main() {
         .add_system(player_input)
         .add_system(player_movement)
         .add_system(zoomy)
+        .add_system(char_accel_movement_update)
         .run();
 }
 
@@ -106,21 +108,32 @@ fn setup(mut commands: Commands, assets: Res<GameAssets>, atlases: Res<Assets<Te
             movement: None,
         },
         NetLocal,
-        RigidBody::Dynamic,
-        Collider::cuboid(0.75, 0.75, 1.75),
-        ColliderMassProperties::Mass(100.0),
-        Friction::coefficient(0.8),
-        Velocity::default(),
-        ExternalImpulse::default(),
-        Damping {
-            linear_damping: 10.0,
-            angular_damping: 0.0,
-        },
-        Sleeping::disabled(),
-        Ccd::enabled(),
-        LockedAxes::ROTATION_LOCKED,
-        ActiveEvents::COLLISION_EVENTS,
-    )).id();
+    ))
+        .insert((
+            RigidBody::KinematicPositionBased,
+            KinematicCharacterController::default(),
+            CharacterMovement {
+                acceleration: 250.0,
+                dampening: 250.0,
+                max_speed: 3.0,
+                min_threshold: 0.05,
+                ..default()
+            },
+            Collider::cuboid(0.75, 0.75, 1.75),
+            ColliderMassProperties::Mass(100.0),
+            Friction::coefficient(0.8),
+            Velocity::default(),
+            ExternalImpulse::default(),
+            Damping {
+                linear_damping: 1.0,
+                angular_damping: 0.0,
+            },
+            Sleeping::disabled(),
+            Ccd::enabled(),
+            LockedAxes::ROTATION_LOCKED,
+            ActiveEvents::COLLISION_EVENTS,
+        ))
+        .id();
 
     let atlas = atlases.get(&assets.atlas1).unwrap();
     let mut cam = Camera2dBundle::new_with_far(100.0 * 16.0);
