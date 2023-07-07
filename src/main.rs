@@ -2,10 +2,11 @@ use bevy::{prelude::*, app::AppExit, input::mouse::{MouseWheel, MouseScrollUnit}
 use bevy_embedded_assets::EmbeddedAssetPlugin;
 use bevy_rapier3d::{prelude::{RapierPhysicsPlugin, NoUserData, RigidBody, Collider, KinematicCharacterController, RapierConfiguration, Ccd, LockedAxes, TimestepMode, Damping, Velocity, Sleeping, ColliderMassProperties, ExternalImpulse, Friction, ActiveEvents}, render::RapierDebugRenderPlugin};
 use character::{char_accel_movement_update};
-use dungeon::gen_dungeon_floor;
+use indicatif::{ProgressBar, MultiProgress};
 use player::{player_input, player_movement, camera_track_entity};
+use rltk::FastNoise;
 
-use crate::{dungeon::{Level, GenRoom}, player::{Player, PlayerInput, PlayerInputMove, NetLocal, CameraTrackEntity}, character::CharacterMovement};
+use crate::{dungeon::{Level}, player::{Player, PlayerInput, PlayerInputMove, NetLocal, CameraTrackEntity}, character::CharacterMovement};
 
 pub mod tileset_1bit;
 pub mod character;
@@ -33,7 +34,6 @@ fn main() {
         .add_system(check_tileset_asset.in_set(OnUpdate(AppState::Setup)))
         .add_system(setup.in_schedule(OnEnter(AppState::Run)))
         .add_system(camera_track_entity)
-        .add_system(gen_dungeon_floor)
         .add_system(player_input)
         .add_system(player_movement)
         .add_system(zoomy)
@@ -92,6 +92,50 @@ fn check_tileset_asset(mut next_state: ResMut<NextState<AppState>>, assets: Res<
 
 fn setup(mut commands: Commands, assets: Res<GameAssets>, atlases: Res<Assets<TextureAtlas>>) {
     println!("Spawning...");
+
+    let mut fast = FastNoise::seeded(0);
+    fast.set_noise_type(rltk::NoiseType::PerlinFractal);
+    fast.set_fractal_octaves(5);
+    fast.set_fractal_gain(0.5);
+    fast.set_fractal_lacunarity(2.0);
+    fast.set_frequency(0.1);
+
+    let mut min = 0f32;
+    let mut max = 0f32;
+    let mut sum = 0f32;
+    let mut count = 0usize;
+
+    let sz = [100i32, 100i32, 100i32];
+    let multi = MultiProgress::new();
+    let barx = multi.add(ProgressBar::new(sz[0] as u64 * 2 + 1));
+    let bary = multi.add(ProgressBar::new(sz[1] as u64 * 2 + 1));
+    let barz = multi.add(ProgressBar::new(sz[2] as u64 * 2 + 1));
+    for x in -sz[0]..=sz[0] {
+        for y in -sz[1]..=sz[1] {
+            for z in -sz[2]..=sz[2] {
+                let val = fast.get_noise3d(x as f32, y as f32, z as f32);
+                min = min.min(val);
+                max = max.max(val);
+                sum += val;
+                count += 1;
+                barz.inc(1);
+            }
+            barz.reset();
+            bary.inc(1);
+        }
+        bary.reset();
+        barx.inc(1);
+    }
+    barz.finish();
+    bary.finish();
+    barx.finish();
+    multi.clear().unwrap();
+
+    println!("Min: {}", min);
+    println!("Max: {}", max);
+    println!("Cnt: {}", count);
+    println!("Sum: {}", sum);
+    println!("Avg: {}", sum / count as f32);
     
     // Local player.
     let player = commands.spawn((
@@ -158,10 +202,9 @@ fn setup(mut commands: Commands, assets: Res<GameAssets>, atlases: Res<Assets<Te
     ));
 
     // Initial level setup.
-    commands.spawn((
-        Level::default(),
-        GenRoom,
-    ));
+    // commands.spawn(
+    //     Level::default()
+    // );
     println!("Ready.");
 }
 
