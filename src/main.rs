@@ -25,10 +25,10 @@ fn main() {
         .add_plugins(DefaultPlugins
             .set(ImagePlugin::default_nearest())
             .set(RenderPlugin {
-               wgpu_settings: WgpuSettings {
-                   backends: Some(Backends::VULKAN),
-                   ..default()
-               },
+                wgpu_settings: WgpuSettings {
+                    backends: Some(Backends::VULKAN),
+                    ..default()
+                },
             })
             .build()
             .add_before::<AssetPlugin, _>(EmbeddedAssetPlugin)
