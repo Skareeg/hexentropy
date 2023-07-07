@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, input::mouse::MouseMotion};
 use lerp::Lerp;
 
 use crate::character::CharacterMovement;
@@ -15,23 +15,29 @@ pub struct Remote {
 }
 
 pub enum PlayerInputMove {
-    Up,
-    Down,
+    Forward,
+    Backward,
     Left,
     Right,
+}
+
+pub enum PlayerInputTurn {
+    Yaw(f32),
+    Pitch(f32),
 }
 
 #[derive(Component)]
 pub struct PlayerInput {
     pub movement: Option<Vec2>,
+    pub aiming: Option<Vec2>,
 }
 
-pub fn player_input(
+pub fn player_input_move(
     keys: Res<Input<KeyCode>>,
     mut inputs: Query<&mut PlayerInput, With<NetLocal>>
 ) {
     for mut input in &mut inputs {
-        input.movement = None;
+        println!("player_input_move");
         let mut mv = Vec2::ZERO;
         if keys.pressed(KeyCode::W) {
             mv.y += 1.0;
@@ -46,42 +52,49 @@ pub fn player_input(
             mv.x += 1.0;
         }
         if mv != Vec2::ZERO {
+            println!("player_input_move");
             input.movement = Some(mv);
+        }
+    }
+}
+pub fn player_input_aim(
+    mut motions: EventReader<MouseMotion>,
+    mut inputs: Query<&mut PlayerInput, With<NetLocal>>
+) {
+    let mut summed_motions = Vec2::ZERO;
+    for motion in motions.iter() {
+        summed_motions += motion.delta;
+        println!("delta");
+    }
+    for mut input in &mut inputs {
+        println!("player_input_aim");
+        if summed_motions != Vec2::ZERO {
+            println!("player_input_aim");
+            input.aiming = Some(summed_motions * 2f32.to_radians());
         }
     }
 }
 
 pub fn player_movement(
-    mut players: Query<(&PlayerInput, &mut CharacterMovement)>
+    mut players: Query<(&mut PlayerInput, &mut CharacterMovement, &Transform)>
 ) {
-    for (input, mut char) in &mut players {
+    for (mut input, mut char, transform) in &mut players {
+        println!("player_movement");
         match &input.movement {
             Some(pim) => {
-                char.requested = Some(Vec3::new(pim.x, pim.y, 0.));
+                println!("player_movement (moving)");
+                char.requested = Some(transform.rotation * Vec3::new(pim.x, 0., pim.y));
             }
             None => {}
         }
-    }
-}
-
-#[derive(Component)]
-pub struct CameraTrackEntity {
-    pub ent: Entity,
-}
-
-pub fn camera_track_entity(
-    mut cameras: Query<(&mut Transform, &CameraTrackEntity)>,
-    ents: Query<&Transform, Without<CameraTrackEntity>>,
-    time: Res<Time>
-)
-{
-    for (mut transform, track) in &mut cameras {
-        match ents.get(track.ent) {
-            Ok(track_transform) => {
-                transform.translation.x = transform.translation.x.lerp(track_transform.translation.x, 0.5 * time.delta_seconds());
-                transform.translation.y = transform.translation.y.lerp(track_transform.translation.y, 0.5 * time.delta_seconds());
+        match &input.aiming {
+            Some(aim) => {
+                println!("player_movement (aiming)");
+                char.aim_requested = Some(*aim);
             }
-            _ => {}
+            None => {}
         }
+        input.movement = None;
+        input.aiming = None;
     }
 }

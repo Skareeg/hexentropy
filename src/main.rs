@@ -1,12 +1,12 @@
-use bevy::{prelude::*, app::AppExit, input::mouse::{MouseWheel, MouseScrollUnit}};
+use bevy::{prelude::*, app::AppExit, input::mouse::{MouseWheel, MouseScrollUnit}, utils::HashMap, render::{RenderPlugin, settings::{WgpuSettings, Backends}}};
 use bevy_embedded_assets::EmbeddedAssetPlugin;
-use bevy_rapier3d::{prelude::{RapierPhysicsPlugin, NoUserData, RigidBody, Collider, KinematicCharacterController, RapierConfiguration, Ccd, LockedAxes, TimestepMode, Damping, Velocity, Sleeping, ColliderMassProperties, ExternalImpulse, Friction, ActiveEvents}, render::RapierDebugRenderPlugin};
-use character::{char_accel_movement_update};
-use indicatif::{ProgressBar, MultiProgress};
-use player::{player_input, player_movement, camera_track_entity};
-use rltk::FastNoise;
+use bevy_rapier3d::{prelude::{RapierPhysicsPlugin, NoUserData, RigidBody, Collider, KinematicCharacterController, RapierConfiguration, Ccd, LockedAxes, Damping, Velocity, Sleeping, ColliderMassProperties, ExternalImpulse, Friction, ActiveEvents}, render::RapierDebugRenderPlugin};
+use character::{char_accel_movement_update, CharacterPlugin};
+use dungeon::LvlPlugin;
+use player::{player_movement, player_input_aim, player_input_move};
 
-use crate::{dungeon::{Level}, player::{Player, PlayerInput, PlayerInputMove, NetLocal, CameraTrackEntity}, character::CharacterMovement};
+
+use crate::{dungeon::{CmdLvlInit}, player::{Player, PlayerInput, NetLocal}, character::CharacterMovement};
 
 pub mod tileset_1bit;
 pub mod character;
@@ -19,25 +19,31 @@ fn main() {
         .insert_resource(ClearColor(Color::BLACK))
         .init_resource::<GameAssets>()
         .insert_resource(RapierConfiguration {
-            gravity: Vec3::new(0., 0., -9.8),
+            gravity: Vec3::new(0., -9.8, 0.),
             ..default()
         })
         .add_plugins(DefaultPlugins
             .set(ImagePlugin::default_nearest())
+            // .set(RenderPlugin {
+            //     wgpu_settings: WgpuSettings {
+            //         backends: Some(Backends::VULKAN),
+            //         ..default()
+            //     },
+            // })
             .build()
             .add_before::<AssetPlugin, _>(EmbeddedAssetPlugin)
         )
-        .add_plugin(RapierPhysicsPlugin::<NoUserData>::default().with_physics_scale(16.0))
+        .add_plugin(RapierPhysicsPlugin::<NoUserData>::default().with_physics_scale(0.5))
         .add_plugin(RapierDebugRenderPlugin::default())
+        .add_plugin(CharacterPlugin)
+        .add_plugin(LvlPlugin)
         .add_state::<AppState>()
-        .add_system(load_textures.in_schedule(OnEnter(AppState::Setup)))
-        .add_system(check_tileset_asset.in_set(OnUpdate(AppState::Setup)))
+        .add_system(load_assets.in_schedule(OnEnter(AppState::Setup)))
+        .add_system(check_assets.in_set(OnUpdate(AppState::Setup)))
         .add_system(setup.in_schedule(OnEnter(AppState::Run)))
-        .add_system(camera_track_entity)
-        .add_system(player_input)
+        .add_system(player_input_move)
+        .add_system(player_input_aim)
         .add_system(player_movement)
-        .add_system(zoomy)
-        .add_system(char_accel_movement_update)
         .run();
 }
 
@@ -55,104 +61,96 @@ impl States for AppState {
     }
 }
 
-#[derive(Resource, Default)]
-pub struct GameAssets {
-    pub atlas1_img: Handle<Image>,
-    pub atlas1: Handle<TextureAtlas>,
+#[derive(Clone)]
+pub struct CombinedMesh {
+    pub mesh: Handle<Mesh>,
+    pub material: Handle<StandardMaterial>,
 }
 
-fn load_textures(mut commands: Commands, mut assets: ResMut<GameAssets>, mut atlases: ResMut<Assets<TextureAtlas>>, sets: Res<AssetServer>) {
-    let texture = sets.load("tileset.png");
-    let tileset = atlases.add(TextureAtlas::from_grid(texture.clone(), Vec2::new(16., 16.), 49, 22, None, None));
-    assets.atlas1_img = texture;
-    assets.atlas1 = tileset;
+impl CombinedMesh {
+    pub fn get_mesh(&self) -> Handle<Mesh> {
+        self.mesh.clone()
+    }
+    pub fn get_material(&self) -> Handle<StandardMaterial> {
+        self.material.clone()
+    }
+}
+
+#[derive(Resource, Default)]
+pub struct GameAssets {
+    pub meshes: HashMap<String, CombinedMesh>,
+}
+
+fn load_assets(
+    mut commands: Commands,
+    mut assets: ResMut<GameAssets>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    sets: Res<AssetServer>
+) {
+    // Load the player.
+    assets.meshes.insert("Player".to_owned(),CombinedMesh {
+        mesh: meshes.add(Mesh::from(shape::Capsule {
+            radius: 0.5,
+            depth: 1.75,
+            ..default()
+        })),
+        material: materials.add(Color::GREEN.into()),
+    });
     println!("Loading...");
 }
 
-fn check_tileset_asset(mut next_state: ResMut<NextState<AppState>>, assets: Res<GameAssets>, sets: Res<AssetServer>, mut ev_app: EventWriter<AppExit>) {
+fn check_assets(mut next_state: ResMut<NextState<AppState>>, assets: Res<GameAssets>, sets: Res<AssetServer>, mut ev_app: EventWriter<AppExit>) {
     use bevy::asset::LoadState;
-    match sets.get_load_state(assets.atlas1_img.clone()) {
-        LoadState::Loaded => {
-            println!("Loaded...");
-            next_state.set(AppState::Run);
-        }
-        LoadState::Failed => {
-            println!("Failed.");
-            ev_app.send(AppExit);
-        }
-        LoadState::NotLoaded => {
-        }
-        LoadState::Unloaded => {
-            println!("Unloaded.");
-            ev_app.send(AppExit);
-        }
-        _ => {}
-    }
+    // match sets.get_load_state(assets.atlas1_img.clone()) {
+    //     LoadState::Loaded => {
+    //         println!("Loaded...");
+    //         next_state.set(AppState::Run);
+    //     }
+    //     LoadState::Failed => {
+    //         println!("Failed.");
+    //         ev_app.send(AppExit);
+    //     }
+    //     LoadState::NotLoaded => {
+    //     }
+    //     LoadState::Unloaded => {
+    //         println!("Unloaded.");
+    //         ev_app.send(AppExit);
+    //     }
+    //     _ => {}
+    // }
+    println!("Loaded...");
+    next_state.set(AppState::Run);
 }
 
-fn setup(mut commands: Commands, assets: Res<GameAssets>, atlases: Res<Assets<TextureAtlas>>) {
+fn setup(mut commands: Commands, assets: Res<GameAssets>) {
     println!("Spawning...");
 
-    let mut fast = FastNoise::seeded(0);
-    fast.set_noise_type(rltk::NoiseType::PerlinFractal);
-    fast.set_fractal_octaves(5);
-    fast.set_fractal_gain(0.5);
-    fast.set_fractal_lacunarity(2.0);
-    fast.set_frequency(0.1);
+    let start_pos = Vec3::new(16.0, 16.0, 4.0);
 
-    let mut min = 0f32;
-    let mut max = 0f32;
-    let mut sum = 0f32;
-    let mut count = 0usize;
-
-    let sz = [100i32, 100i32, 100i32];
-    let multi = MultiProgress::new();
-    let barx = multi.add(ProgressBar::new(sz[0] as u64 * 2 + 1));
-    let bary = multi.add(ProgressBar::new(sz[1] as u64 * 2 + 1));
-    let barz = multi.add(ProgressBar::new(sz[2] as u64 * 2 + 1));
-    for x in -sz[0]..=sz[0] {
-        for y in -sz[1]..=sz[1] {
-            for z in -sz[2]..=sz[2] {
-                let val = fast.get_noise3d(x as f32, y as f32, z as f32);
-                min = min.min(val);
-                max = max.max(val);
-                sum += val;
-                count += 1;
-                barz.inc(1);
-            }
-            barz.reset();
-            bary.inc(1);
-        }
-        bary.reset();
-        barx.inc(1);
-    }
-    barz.finish();
-    bary.finish();
-    barx.finish();
-    multi.clear().unwrap();
-
-    println!("Min: {}", min);
-    println!("Max: {}", max);
-    println!("Cnt: {}", count);
-    println!("Sum: {}", sum);
-    println!("Avg: {}", sum / count as f32);
+    let player_mesh = assets.meshes["Player"].clone();
     
     // Local player.
-    let player = commands.spawn((
-        SpriteSheetBundle {
-            texture_atlas: assets.atlas1.clone(),
-            sprite: TextureAtlasSprite::new(tileset_1bit::TileSet1Bit::Human as usize),
-            transform: Transform::from_xyz(50.0 * 16.0, 50.0 * 16.0, 4.),
-            ..default()
-        },
+    commands.spawn((
         Player {
             id: 0,
         },
         PlayerInput {
             movement: None,
+            aiming: None,
         },
         NetLocal,
     ))
+        // Mesh.
+        .insert(
+            PbrBundle {
+                mesh: player_mesh.get_mesh(),
+                material: player_mesh.get_material(),
+                transform: Transform::from_translation(start_pos),
+                ..default()
+            }
+        )
+        // Physics.
         .insert((
             RigidBody::KinematicPositionBased,
             KinematicCharacterController::default(),
@@ -174,56 +172,34 @@ fn setup(mut commands: Commands, assets: Res<GameAssets>, atlases: Res<Assets<Te
             },
             Sleeping::disabled(),
             Ccd::enabled(),
-            LockedAxes::ROTATION_LOCKED,
+            LockedAxes::ROTATION_LOCKED_X | LockedAxes::ROTATION_LOCKED_Y,
             ActiveEvents::COLLISION_EVENTS,
         ))
-        .id();
+        // Camera.
+        .with_children(|parent| {
+            parent.spawn(Camera3dBundle {
+                transform: Transform::from_xyz(0.0, 0.65, 0.0),
+                ..default()
+            });
+        });
 
-    let atlas = atlases.get(&assets.atlas1).unwrap();
-    let mut cam = Camera2dBundle::new_with_far(100.0 * 16.0);
-    cam.transform.translation.x = 50.0 * 16.0;
-    cam.transform.translation.y = 50.0 * 16.0;
-    cam.projection.scale = 1.0;
-    commands.spawn((cam, CameraTrackEntity { ent: player }));
+    // Ambient lighting for all.
+    commands.insert_resource(AmbientLight {
+        color: Color::WHITE,
+        brightness: 0.2,
+    });
 
     // Floor.
     commands.spawn((
-        Collider::cuboid(100.0 * 16.0, 100.0 * 16.0, 0.1),
-        TransformBundle::from(Transform::from_xyz(50.0 * 16.0, 50.0 * 16.0, 0.0)),
-    ));
-
-    // Texture atlas outside of room.
-    commands.spawn((
-        SpriteBundle {
-            texture: atlas.texture.clone(),
-            transform: Transform::from_xyz(50.0 * 16.0, 30.0 * 16.0, 0.),
-            ..default()
-        },
+        Collider::cuboid(100.0 * 16.0, 0.1, 100.0 * 16.0),
+        TransformBundle::from(Transform::from_xyz(50.0 * 16.0, 0.0, 50.0 * 16.0)),
     ));
 
     // Initial level setup.
-    // commands.spawn(
-    //     Level::default()
-    // );
-    println!("Ready.");
-}
-
-pub fn zoomy(
-    mut projections: Query<&mut OrthographicProjection>,
-    mut input: EventReader<MouseWheel>,
-) {
-    for ev in input.iter() {
-        match ev.unit {
-            MouseScrollUnit::Line => {
-                for mut projection in &mut projections {
-                    if ev.y < 0.0 {
-                        projection.scale /= 0.9;
-                    } else {
-                        projection.scale *= 0.9;
-                    }
-                }
-            }
-            _ => {}
+    commands.spawn(
+        CmdLvlInit {
+            seed: 0,
         }
-    }
+    );
+    println!("Ready.");
 }
